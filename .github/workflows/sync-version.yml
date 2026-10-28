@@ -48,7 +48,6 @@ jobs:
           apk = apks[0]
           if not apk["browser_download_url"].startswith(f"https://github.com/{repo}/releases/download/"):
               raise SystemExit("URL do APK não pertence ao repositório esperado")
-          apk_data = get(apk["url"]) if False else None
           # Download binário pelo endpoint de assets, sem imprimir o conteúdo no log.
           request = urllib.request.Request(apk["url"], headers={**headers, "Accept":"application/octet-stream"})
           sha = hashlib.sha256()
