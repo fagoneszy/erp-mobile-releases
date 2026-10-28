@@ -38,7 +38,7 @@ gh release create v1.0.0 ./erp-mobile-v1.0.0.apk --repo fagoneszy/erp-mobile-rel
 O GitHub Actions `sync-version.yml` irá ler essa release e atualizar o arquivo `version.json` com a tag, o nome/URL do APK e seu hash SHA-256. Antes de publicar a próxima versão, atualize a versão e incremente o `versionCode` no app.
 
 ## 3. No aplicativo
-O app pode consultar `https://raw.githubusercontent.com/fagoneszy/erp-mobile-releases/main/version.json`, com cache e tratamento de erros. Apenas ofereça a atualização se `published === true`, `appId` corresponder ao pacote instalado, `versionCode` for maior que o instalado e a URL de download for HTTPS e apontar para a Release esperada. Uma checagem por dia normalmente é suficiente; também ofereça **Verificar atualizações** em Configurações.
+O app pode consultar `https://raw.githubusercontent.com/fagoneszy/erp-mobile-releases/main/version.json`, com cache e tratamento de erros. Apenas ofereça a atualização se `published === true`, `appId` corresponder ao pacote instalado, a versão SemVer for maior que a instalada (o campo `versionCode` é opcional neste manifesto) e a URL de download for HTTPS e apontar para a Release esperada. Uma checagem por dia normalmente é suficiente; também ofereça **Verificar atualizações** em Configurações.
 
 A instalação de APK requer confirmação do usuário. Para integridade, verifique o SHA-256 após baixar o arquivo, antes de oferecê-lo ao instalador do Android. No aplicativo, considere que um repositório público pode sofrer alterações e trate o manifesto como informação não confiável; não execute nenhum conteúdo retornado. Para alta garantia de autenticidade, use assinatura digital do manifesto com chave pública incorporada ao app.
 
