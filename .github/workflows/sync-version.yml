@@ -1,0 +1,84 @@
+name: Sincronizar manifesto de atualização
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: erp-mobile-version-manifest
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Atualizar manifesto da última release estável
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, subprocess, urllib.request, hashlib, datetime
+          repo = os.environ["GH_REPO"]
+          headers = {
+              "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "erp-mobile-release-sync"
+          }
+          def get(url):
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req, timeout=40) as response:
+                  return response.read()
+          release = json.loads(get(f"https://api.github.com/repos/{repo}/releases/latest"))
+          tag = release["tag_name"]
+          if not re.fullmatch(r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag):
+              raise SystemExit("Release estável requer tag SemVer como v1.0.0")
+          apks = [a for a in release["assets"] if a["name"].lower().endswith(".apk")]
+          if len(apks) != 1:
+              raise SystemExit("A Release precisa ter exatamente um arquivo APK")
+          apk = apks[0]
+          if not apk["browser_download_url"].startswith(f"https://github.com/{repo}/releases/download/"):
+              raise SystemExit("URL do APK não pertence ao repositório esperado")
+          apk_data = get(apk["url"]) if False else None
+          # Download binário pelo endpoint de assets, sem imprimir o conteúdo no log.
+          request = urllib.request.Request(apk["url"], headers={**headers, "Accept":"application/octet-stream"})
+          sha = hashlib.sha256()
+          with urllib.request.urlopen(request, timeout=120) as response:
+              if not response.headers.get("Content-Type", "").startswith("application/octet-stream"):
+                  raise SystemExit("API não retornou conteúdo binário do APK")
+              while chunk := response.read(1024 * 1024):
+                  sha.update(chunk)
+          manifest = {
+              "schemaVersion": 1,
+              "appId": "com.fagner.erpmobile",
+              "channel": "stable",
+              "published": True,
+              "version": tag.lstrip("v"),
+              "versionCode": None,
+              "publishedAt": release["published_at"],
+              "downloadUrl": apk["browser_download_url"],
+              "sha256": sha.hexdigest(),
+              "releaseNotes": release.get("body") or ""
+          }
+          with open("version.json", "w", encoding="utf-8") as fp:
+              json.dump(manifest, fp, ensure_ascii=False, indent=2)
+              fp.write("\n")
+          PY
+      - name: Commitar versão atualizada
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: sincronizar manifesto da última release"
+            git push origin HEAD:main
+          fi
